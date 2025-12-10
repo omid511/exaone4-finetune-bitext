@@ -79,7 +79,7 @@ def main():
     # --- 4. Training Configuration ---
     sft_config = SFTConfig(
         output_dir=args.output_dir,
-        max_seq_length=args.max_seq_length,
+        max_length=args.max_seq_length,
         # Batch sizes
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
