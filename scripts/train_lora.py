@@ -3,20 +3,21 @@ import torch
 from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer
 from transformers import AutoModelForCausalLM, AutoTokenizer, EarlyStoppingCallback
+from peft import LoraConfig, get_peft_model, TaskType
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Finetune with DeepSpeed ZeRO")
+    parser = argparse.ArgumentParser(description="Finetune with DeepSpeed ZeRO and LoRA")
     parser.add_argument("--model_id", type=str, default="LGAI-EXAONE/EXAONE-4.0-1.2B")
     parser.add_argument(
         "--dataset_id",
         type=str,
         default="bitext/Bitext-customer-support-llm-chatbot-training-dataset",
     )
-    parser.add_argument("--output_dir", type=str, default="./checkpoints")
-    parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--grad_accum", type=int, default=8)
-    parser.add_argument("--lr", type=float, default=5e-5)
+    parser.add_argument("--output_dir", type=str, default="./checkpoints_lora")
+    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--grad_accum", type=int, default=4)
+    parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument(
         "--local_rank", type=int, default=-1, help="Local rank for distributed training"
     )
@@ -76,7 +77,27 @@ def main():
     # Enable Gradient Checkpointing (Industry Standard for saving VRAM)
     model.gradient_checkpointing_enable()
 
-    # --- 4. Training Configuration ---
+    # --- 4. LoRA Config ---
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        inference_mode=False,
+        r=16,
+        lora_alpha=32,
+        lora_dropout=0.05,
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+    )
+    model = get_peft_model(model, peft_config)
+    model.print_trainable_parameters()
+
+    # --- 5. Training Configuration ---
     sft_config = SFTConfig(
         output_dir=args.output_dir,
         max_seq_length=args.max_seq_length,
@@ -85,7 +106,7 @@ def main():
         per_device_eval_batch_size=args.batch_size,
         gradient_accumulation_steps=args.grad_accum,
         # Training Duration
-        max_steps=1500,  # Shortened for demo, increase for real training
+        max_steps=1500,
         eval_strategy="steps",
         eval_steps=1500 // 10,
         save_steps=1500 // 10,
@@ -108,7 +129,7 @@ def main():
         ddp_find_unused_parameters=False,
     )
 
-    # --- 5. Initialize Trainer ---
+    # --- 6. Initialize Trainer ---
     trainer = SFTTrainer(
         model=model,
         args=sft_config,
@@ -118,15 +139,15 @@ def main():
         callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
 
-    # --- 6. Train ---
-    print(">>> Starting DeepSpeed Training...")
+    # --- 7. Train ---
+    print(">>> Starting DeepSpeed LoRA Training...")
     trainer.train()
 
-    # --- 7. Save Model ---
+    # --- 8. Save Model ---
     # In distributed training, we want to ensure we merge weights properly
     trainer.save_model(args.output_dir)
     tokenizer.save_pretrained(args.output_dir)
-    print(f">>> Training complete. Model saved to {args.output_dir}")
+    print(f">>> Training complete. LoRA adapters saved to {args.output_dir}")
 
 
 if __name__ == "__main__":

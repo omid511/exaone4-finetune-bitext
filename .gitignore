@@ -1,2 +1,3 @@
 exaone-ds-finetune/
 .venv/
+*/__pycache__
