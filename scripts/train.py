@@ -2,7 +2,7 @@ import argparse
 import torch
 from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, EarlyStoppingCallback
 
 
 def parse_args():
@@ -77,16 +77,20 @@ def main():
         per_device_eval_batch_size=args.batch_size,
         gradient_accumulation_steps=args.grad_accum,
         # Training Duration
-        max_steps=500,  # Shortened for demo, increase for real training
+        max_steps=2500 * 5,  # Shortened for demo, increase for real training
         eval_strategy="steps",
-        eval_steps=50,
-        save_steps=100,
+        eval_steps=2500 // 5,
+        save_steps=2500 // 5,
+        load_best_model_at_end=True,  # Crucial: Loads the best checkpoint when done
+        metric_for_best_model="eval_loss",  # Watch the validation loss
+        greater_is_better=False,  # Lower loss is better
         save_total_limit=2,
         logging_steps=10,
         # Optimizer & Scheduler
-        optim="paged_adamw_8bit",  # Compatible with DeepSpeed
+        optim="paged_adamw_8bit",
         learning_rate=args.lr,
         lr_scheduler_type="cosine",
+        weight_decay=0.01,
         warmup_ratio=0.1,
         # Technical Settings
         fp16=True,
@@ -103,6 +107,7 @@ def main():
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         processing_class=tokenizer,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
 
     # --- 6. Train ---

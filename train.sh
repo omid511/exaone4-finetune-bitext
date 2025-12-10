@@ -13,5 +13,5 @@ uv run accelerate launch --config_file configs/zero2.yaml scripts/train.py \
     --model_id "LGAI-EXAONE/EXAONE-4.0-1.2B" \
     --output_dir "./exaone-ds-finetune" \
     --batch_size 1 \
-    --grad_accum 8 \
-    --lr 5e-5
+    --grad_accum 16 \
+    --lr 3e-5
