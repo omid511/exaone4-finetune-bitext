@@ -1,7 +1,7 @@
 #!/bin/bash
+export OMP_NUM_THREADS=2
 
 # 1. Install DeepSpeed if missing (Kaggle usually needs this)
-# We use pre-compiled wheels if possible to save 20 minutes of build time
 uv sync
 
 # 2. Set Visible Devices (ensure we see both T4s)

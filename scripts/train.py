@@ -61,7 +61,7 @@ def main():
     # DeepSpeed will manage placing layers on devices.
     model = AutoModelForCausalLM.from_pretrained(
         args.model_id,
-        torch_dtype=torch.float16,
+        dtype=torch.float16,
         attn_implementation="eager",
         use_cache=False,  # Must be False for Gradient Checkpointing
     )
