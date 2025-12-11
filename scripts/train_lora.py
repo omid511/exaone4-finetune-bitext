@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from datasets import load_dataset
-from trl import SFTConfig, SFTTrainer
+from trl import SFTConfig, SFTTrainer, RichProgressCallback
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -168,7 +168,7 @@ def main():
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         processing_class=tokenizer,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3), RichProgressCallback()],
     )
 
     # --- 7. Train ---

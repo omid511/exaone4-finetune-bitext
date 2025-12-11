@@ -11,7 +11,7 @@ export CUDA_VISIBLE_DEVICES=0,1
 # We pass python arguments after the script name
 
 uv run accelerate launch --config_file configs/zero2.yaml scripts/train.py \
-    --model_id "Qwen/Qwen3-1.7B-Instruct" \
+    --model_id "Qwen/Qwen3-1.7B" \
     --output_dir "./qwen3-finetune" \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 1 \
@@ -26,9 +26,12 @@ uv run accelerate launch --config_file configs/zero2.yaml scripts/train.py \
     --save_steps 100 \
     --save_total_limit 2 \
     --logging_steps 10 \
+    --load_best_model_at_end True \
+    --metric_for_best_model "eval_loss" \
+    --greater_is_better False \
+    --disable_tqdm True \
     --fp16 \
     --packing False \
     --dataset_text_field "text" \
     --ddp_find_unused_parameters False \
-    --attn_implementation "eager" \
-    "$@"
+    --attn_implementation "eager" "$@"
