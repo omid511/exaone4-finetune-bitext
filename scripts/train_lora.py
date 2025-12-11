@@ -111,7 +111,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         script_args.model_id,
         quantization_config=quantization_config,
-        dtype=torch.float16 if not script_args.use_bnb else None, # BnB handles dtype details
+        dtype=torch.float16,
         attn_implementation=script_args.attn_implementation,
         use_cache=False, # Gradient Checkpointing generally needs use_cache=False during training
         # device_map="auto" # Often needed for BnB, but check DeepSpeed compatibility
