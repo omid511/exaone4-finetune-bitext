@@ -1,47 +1,59 @@
-import argparse
-import torch
+import sys
+from dataclasses import dataclass, field
+from typing import Optional
+
 from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer
-from transformers import AutoModelForCausalLM, AutoTokenizer, EarlyStoppingCallback
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    EarlyStoppingCallback,
+    HfArgumentParser,
+)
+import torch
+import os
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Finetune with DeepSpeed ZeRO")
-    parser.add_argument("--model_id", type=str, default="LGAI-EXAONE/EXAONE-4.0-1.2B")
-    parser.add_argument(
-        "--dataset_id",
-        type=str,
+@dataclass
+class ScriptArguments:
+    model_id: str = field(
+        default="Qwen/Qwen3-1.7B-Instruct",
+        metadata={"help": "The model that you want to train from the Hugging Face hub."},
+    )
+    dataset_id: str = field(
         default="bitext/Bitext-customer-support-llm-chatbot-training-dataset",
+        metadata={"help": "The name of the dataset to use."},
     )
-    parser.add_argument("--output_dir", type=str, default="./checkpoints")
-    parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--grad_accum", type=int, default=8)
-    parser.add_argument("--lr", type=float, default=5e-5)
-    parser.add_argument(
-        "--local_rank", type=int, default=-1, help="Local rank for distributed training"
+    max_seq_length: int = field(
+        default=300,
+        metadata={"help": "The maximum sequence length for the model."},
     )
-    parser.add_argument("--max_seq_length", type=int, default=300)
-    parser.add_argument(
-        "--attn_implementation",
-        type=str,
+    attn_implementation: str = field(
         default="eager",
-        choices=["eager", "sdpa", "flash_attention_2"],
+        metadata={
+            "help": "Attention implementation to use.",
+            "choices": ["eager", "sdpa", "flash_attention_2"],
+        },
     )
-    return parser.parse_args()
 
 
 def main():
-    args = parse_args()
+    parser = HfArgumentParser((ScriptArguments, SFTConfig))
+    
+    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
+        script_args, sft_config = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+    else:
+        script_args, sft_config = parser.parse_args_into_dataclasses()
 
     # --- 1. Tokenizer Setup ---
-    tokenizer = AutoTokenizer.from_pretrained(args.model_id)
+    tokenizer = AutoTokenizer.from_pretrained(script_args.model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
     # --- 2. Dataset Processing ---
     # Load raw dataset
-    full_dataset = load_dataset(args.dataset_id, split="train")
+    full_dataset = load_dataset(script_args.dataset_id, split="train")
 
     # Split: 90% Train, 10% Validation
     dataset_split = full_dataset.train_test_split(test_size=0.1)
@@ -60,55 +72,21 @@ def main():
         return {"text": text}
 
     # Map dataset (disable multiprocessing to avoid lock issues in distributed env)
-    train_dataset = train_dataset.map(apply_chat_style, num_proc=3)
-    val_dataset = val_dataset.map(apply_chat_style, num_proc=3)
+    train_dataset = train_dataset.map(apply_chat_style, num_proc=1)
+    val_dataset = val_dataset.map(apply_chat_style, num_proc=1)
 
     # --- 3. Model Setup ---
-    # When using DeepSpeed do not specify device_map.
-    # DeepSpeed will manage placing layers on devices.
     model = AutoModelForCausalLM.from_pretrained(
-        args.model_id,
+        script_args.model_id,
         dtype=torch.float16,
-        attn_implementation=args.attn_implementation,
+        attn_implementation=script_args.attn_implementation,
         use_cache=False,  # Must be False for Gradient Checkpointing
     )
 
-    # Enable Gradient Checkpointing (Industry Standard for saving VRAM)
+    # Enable Gradient Checkpointing (Standard for Full FT)
     model.gradient_checkpointing_enable()
 
-    # --- 4. Training Configuration ---
-    sft_config = SFTConfig(
-        output_dir=args.output_dir,
-        max_length=args.max_seq_length,
-        # Batch sizes
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        gradient_accumulation_steps=args.grad_accum,
-        # Training Duration
-        max_steps=1500,  # Shortened for demo, increase for real training
-        eval_strategy="steps",
-        eval_steps=1500 // 10,
-        save_steps=1500 // 10,
-        load_best_model_at_end=True,  # Crucial: Loads the best checkpoint when done
-        metric_for_best_model="eval_loss",  # Watch the validation loss
-        greater_is_better=False,  # Lower loss is better
-        save_total_limit=2,
-        logging_steps=10,
-        # Optimizer & Scheduler
-        optim="paged_adamw_8bit",
-        learning_rate=args.lr,
-        lr_scheduler_type="cosine",
-        weight_decay=0.01,
-        warmup_ratio=0.05,
-        # Technical Settings
-        fp16=True,
-        packing=False,
-        dataset_text_field="text",
-        # DeepSpeed specific:
-        ddp_find_unused_parameters=False,
-    )
-
-    # --- 5. Initialize Trainer ---
+    # --- 4. Initialize Trainer ---
     trainer = SFTTrainer(
         model=model,
         args=sft_config,
@@ -118,15 +96,18 @@ def main():
         callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
 
-    # --- 6. Train ---
-    print(">>> Starting DeepSpeed Training...")
-    trainer.train()
+    # --- 5. Train ---
+    print(">>> Starting Full Fine-Tuning...")
+    trainer.train(resume_from_checkpoint=sft_config.resume_from_checkpoint)
 
-    # --- 7. Save Model ---
-    # In distributed training, we want to ensure we merge weights properly
-    trainer.save_model(args.output_dir)
-    tokenizer.save_pretrained(args.output_dir)
-    print(f">>> Training complete. Model saved to {args.output_dir}")
+    # --- 6. Save Model ---
+    trainer.save_model(sft_config.output_dir)
+    tokenizer.save_pretrained(sft_config.output_dir)
+    print(f">>> Training complete. Model saved to {sft_config.output_dir}")
+
+    # Push if requested
+    if sft_config.push_to_hub:
+        trainer.push_to_hub()
 
 
 if __name__ == "__main__":
