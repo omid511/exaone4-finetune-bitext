@@ -1,4 +1,3 @@
-#!/bin/bash
 export OMP_NUM_THREADS=2
 
 # 1. Install DeepSpeed if missing (Kaggle usually needs this)
@@ -20,7 +19,7 @@ uv run accelerate launch --config_file configs/zero2.yaml scripts/train.py \
     --lr_scheduler_type "cosine" \
     --warmup_ratio 0.1 \
     --max_seq_length 300 \
-    --max_steps 500 \
+    --num_train_epochs 3 \
     --eval_strategy "steps" \
     --eval_steps 50 \
     --save_steps 100 \
