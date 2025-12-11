@@ -17,6 +17,18 @@ uv run accelerate launch --config_file configs/zero2.yaml scripts/train.py \
     --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 16 \
     --learning_rate 3e-5 \
+    --lr_scheduler_type "cosine" \
+    --warmup_ratio 0.1 \
     --max_seq_length 300 \
+    --max_steps 500 \
+    --eval_strategy "steps" \
+    --eval_steps 50 \
+    --save_steps 100 \
+    --save_total_limit 2 \
+    --logging_steps 10 \
+    --fp16 \
+    --packing False \
+    --dataset_text_field "text" \
+    --ddp_find_unused_parameters False \
     --attn_implementation "eager" \
     "$@"
