@@ -36,7 +36,7 @@
                     "os": "Linux-6.6.105+-x86_64-with-glibc2.35",
                     "git": {
                         "commit": "28576cb7527350fbb98cecd588e808b1d41586b1",
-                        "remote": "https://github.com/omid511/exaone4-finetune-bitext"
+                        "remote": "https://github.com/omid511/qwen3-1.7b-finetune-bitext"
                     },
                     "gpu": "Tesla T4",
                     "args": [
@@ -103,19 +103,19 @@
                         }
                     },
                     "host": "8d8ea1a90329",
-                    "root": "/kaggle/working/exaone4-finetune-bitext",
+                    "root": "/kaggle/working/qwen3-1.7b-finetune-bitext",
                     "email": "omid511.orm@gmail.com",
                     "memory": {
                         "total": "33662472192"
                     },
                     "python": "CPython 3.11.13",
-                    "program": "/kaggle/working/exaone4-finetune-bitext/scripts/train_lora.py",
+                    "program": "/kaggle/working/qwen3-1.7b-finetune-bitext/scripts/train_lora.py",
                     "codePath": "scripts/train_lora.py",
                     "writerId": "yxly6qqkmcgxqo6gxldsd8elgl08xwkv",
                     "cpu_count": 2,
                     "gpu_count": 2,
                     "startedAt": "2025-12-11T17:31:57.328824Z",
-                    "executable": "/kaggle/working/exaone4-finetune-bitext/.venv/bin/python",
+                    "executable": "/kaggle/working/qwen3-1.7b-finetune-bitext/.venv/bin/python",
                     "gpu_nvidia": [
                         {
                             "name": "Tesla T4",

@@ -362,7 +362,7 @@ wheels = [
 ]
 
 [[package]]
-name = "exaone4-finetune-bitext"
+name = "qwen3-1.7b-finetune-bitext"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
