@@ -8,106 +8,192 @@ tags:
 - sft
 - deepspeed
 - lora
+- qlora
 - customer-support
 - chatbot
+- conversational
 license: apache-2.0
 datasets:
 - bitext/Bitext-customer-support-llm-chatbot-training-dataset
 language:
 - en
+pipeline_tag: text-generation
 ---
 
-# Model Card for Qwen3-1.7B Customer Support Agent
+<div align="center">
 
-This model is a fine-tuned version of [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) on the [Bitext Customer Support dataset](https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset). It is designed to act as a helpful customer support agent.
+# 🤖 Qwen3-1.7B Customer Support Agent
+
+**A fine-tuned LLM specialized in customer service conversations**
+
+[![Demo](https://img.shields.io/badge/🚀%20Try-Live%20Demo-green)](https://huggingface.co/spaces/omid5/qwen3-customer-support-demo)
+[![GitHub](https://img.shields.io/badge/📁%20Code-GitHub-blue)](https://github.com/omid511/qwen3-1.7b-finetune-customer-support)
+
+</div>
+
+---
+
+## Overview
+
+This model is a QLoRA fine-tuned version of [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) trained on the [Bitext Customer Support dataset](https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset). It's designed to handle common customer support scenarios including order inquiries, refunds, shipping, and account management.
+
+> 💡 **Tip:** [Try the Live Demo on Hugging Face Spaces](https://huggingface.co/spaces/omid5/qwen3-customer-support-demo)
+
+---
 
 ## Model Details
 
-- **Base Model:** [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B)
-- **Architecture:** Qwen3 (1.7B parameters)
-- **Training Method:** QLoRA (4-bit quantization with LoRA adapters)
-- **Dataset:** [Bitext-customer-support-llm-chatbot-training-dataset](https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset)
-- **Language:** English
-- **Code Repository:** [omid511/qwen3-1.7b-finetune-customer-support](https://github.com/omid511/qwen3-1.7b-finetune-customer-support)
+| Property | Value |
+|:---------|:------|
+| **Base Model** | [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) |
+| **Architecture** | Qwen3 (1.7B parameters) |
+| **Training Method** | QLoRA (4-bit NF4 quantization + LoRA) |
+| **Language** | English |
+| **License** | Apache-2.0 |
 
-## Usage
+---
 
-### Loading the Adapter (Default)
+## Quick Start
+
+### Option 1: Load Merged Model (Recommended)
+
+The fully merged model is available on the `merged` branch:
 
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from peft import PeftModel
 import torch
 
-base_model_id = "Qwen/Qwen3-1.7B"
-adapter_model_id = "omid5/Qwen3-1.7b-cusomer-support-agent"
-
-# 1. Load Base Model
-base_model = AutoModelForCausalLM.from_pretrained(
-    base_model_id,
-    torch_dtype=torch.float16,
-    device_map="auto"
-)
-
-# 2. Load Adapters
-model = PeftModel.from_pretrained(base_model, adapter_model_id)
-tokenizer = AutoTokenizer.from_pretrained(base_model_id)
-
-# 3. Inference
-messages = [
-    {"role": "user", "content": "I received a defective item, what should I do?"}
-]
-text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-inputs = tokenizer(text, return_tensors="pt").to("cuda")
-
-outputs = model.generate(**inputs, max_new_tokens=128)
-print(tokenizer.decode(outputs[0], skip_special_tokens=True))
-```
-
-### Loading the Merged Model
-
-The full merged model is available on the `merged` branch of this repository.
-
-```python
 model = AutoModelForCausalLM.from_pretrained(
     "omid5/Qwen3-1.7b-cusomer-support-agent",
     revision="merged",
     torch_dtype=torch.float16,
     device_map="auto"
 )
-tokenizer = AutoTokenizer.from_pretrained("omid5/Qwen3-1.7b-cusomer-support-agent", revision="merged")
+tokenizer = AutoTokenizer.from_pretrained(
+    "omid5/Qwen3-1.7b-cusomer-support-agent", 
+    revision="merged"
+)
+
+# Generate response
+messages = [{"role": "user", "content": "I want to return my order, what should I do?"}]
+text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+inputs = tokenizer(text, return_tensors="pt").to(model.device)
+
+outputs = model.generate(**inputs, max_new_tokens=256)
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 ```
+
+### Option 2: Load LoRA Adapters
+
+For lower memory usage, load adapters separately:
+
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
+import torch
+
+# Load base model
+base_model = AutoModelForCausalLM.from_pretrained(
+    "Qwen/Qwen3-1.7B",
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+
+# Load adapters
+model = PeftModel.from_pretrained(base_model, "omid5/Qwen3-1.7b-cusomer-support-agent")
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-1.7B")
+
+# Optional: Merge for faster inference
+model = model.merge_and_unload()
+```
+
+---
 
 ## Training Configuration
 
-The model was trained using `accelerate` and `DeepSpeed` with the following hyperparameters:
+### Hyperparameters
 
-- **Epochs:** 2
-- **Learning Rate:** 2e-4 (Cosine Schedule)
-- **Batch Size:** 8 (per device train) / 16 (per device eval)
-- **Gradient Accumulation:** 2
-- **Max Sequence Length:** 400
-- **LoRA Config:**
-    - `r`: 16
-    - `alpha`: 32
-    - `dropout`: 0.05
-    - `target_modules`: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
-- **Quantization:** 4-bit (nf4) via `bitsandbytes`
+| Parameter | Value |
+|:----------|------:|
+| Epochs | 2 |
+| Learning Rate | 2e-4 |
+| LR Scheduler | Cosine |
+| Warmup Ratio | 0.1 |
+| Batch Size (train) | 8 |
+| Batch Size (eval) | 16 |
+| Gradient Accumulation | 2 |
+| Max Sequence Length | 400 |
+| Precision | FP16 |
 
-## Training Metrics
+### LoRA Configuration
+
+| Parameter | Value |
+|:----------|------:|
+| Rank (r) | 16 |
+| Alpha | 32 |
+| Dropout | 0.05 |
+| Target Modules | `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj` |
+
+### Quantization
+
+- **Method:** 4-bit NF4 via `bitsandbytes`
+- **Double Quantization:** Enabled
+- **Compute dtype:** FP16
+
+---
+
+## Results
 
 | Metric | Value |
-| :--- | :--- |
+|:-------|------:|
 | **Validation Loss** | 0.5842 |
-| **Validation Token Acc.** | 81.00% |
+| **Token Accuracy** | 81.00% |
 | **Training Loss** | 0.6846 |
-| **Training Runtime** | 9282s (~2.6h) |
+| **Training Runtime** | ~2.6 hours |
 | **Samples/Second** | 5.21 |
-| **Total Global Steps** | 1512 |
+| **Total Steps** | 1,512 |
 
-## Hardware
-- **GPUs:** 2x Tesla T4
-- **Platform:** Kaggle / Cloud
+### Training Environment
+
+- **Hardware:** 2× Tesla T4 (Kaggle)
+- **Framework:** Transformers + TRL + PEFT + DeepSpeed ZeRO-2
+- **Tracking:** Weights & Biases
+
+---
+
+## Intended Use
+
+### Recommended Applications
+
+- Customer support chatbots
+- Order and shipment inquiries
+- Returns and refunds assistance
+- Account management help
+- FAQ automation
+
+### Limitations
+
+- Trained on English data only
+- May generate placeholder tokens from training data (e.g., `{{Customer Name}}`)
+- Not suitable for medical, legal, or financial advice
+- Responses should be reviewed for production deployment
+
+---
+
+## Citation
+
+```bibtex
+@misc{qwen3-customer-support,
+  title={Qwen3-1.7B Customer Support Agent},
+  author={omid5},
+  year={2024},
+  publisher={Hugging Face},
+  url={https://huggingface.co/omid5/Qwen3-1.7b-cusomer-support-agent}
+}
+```
+
+---
 
 ## License
+
 Apache-2.0

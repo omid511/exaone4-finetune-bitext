@@ -1,0 +1,7 @@
+title: Qwen3 Customer Support Demo
+emoji: 🤖
+colorFrom: indigo
+colorTo: cyan
+sdk: gradio
+app_file: app.py
+python_version: '3.10'
