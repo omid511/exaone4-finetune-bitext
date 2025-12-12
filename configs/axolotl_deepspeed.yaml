@@ -1,0 +1,70 @@
+base_model: Qwen/Qwen3-1.7B-Instruct
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+
+load_in_8bit: false
+load_in_4bit: true
+strict: false
+
+datasets:
+  - path: bitext/Bitext-customer-support-llm-chatbot-training-dataset
+    type: chat_template
+    split: train
+    chat_template: chatml
+    field_messages: text
+    message_field_role: role
+    message_field_content: content
+
+dataset_prepared_path: ./last_run_prepared
+val_set_size: 0.1
+output_dir: ./qwen3-lora-axolotl
+
+adapter: qlora
+lora_model_dir:
+
+sequence_len: 2048
+sample_packing: false
+pad_to_sequence_len: true
+
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+gradient_accumulation_steps: 16
+micro_batch_size: 1
+num_epochs: 3
+optimizer: paged_adamw_32bit
+lr_scheduler: cosine
+learning_rate: 2e-4
+
+train_on_inputs: false
+group_by_length: false
+bf16: false
+fp16: true
+tf32: false
+
+gradient_checkpointing: false
+early_stopping_patience:
+resume_from_checkpoint:
+local_rank:
+logging_steps: 10
+xformers_attention:
+flash_attention: true
+
+warmup_ratio: 0.1
+evals_per_epoch: 4
+saves_per_epoch: 1
+debug:
+deepspeed: configs/zero2.yaml
+weight_decay: 0.0
+fsdp:
+fsdp_config:
+special_tokens:

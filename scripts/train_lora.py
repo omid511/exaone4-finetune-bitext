@@ -51,6 +51,10 @@ class ScriptArguments:
         default=False,
         metadata={"help": "Whether to merge LoRA adapters and push to Hub at the end."},
     )
+    use_dora: bool = field(
+        default=False,
+        metadata={"help": "Whether to use DoRA (Weight-Decomposed LoRA)."},
+    )
 
 
 def main():
@@ -139,7 +143,8 @@ def main():
         inference_mode=False,
         r=16,
         lora_alpha=32,
-        lora_dropout=0.05,
+        lora_dropout=0.0 if script_args.use_dora else 0.05,
+        use_dora=script_args.use_dora,
         target_modules=[
             "q_proj",
             "k_proj",
@@ -225,9 +230,9 @@ def main():
             # User provided ONE repo url: `omid5/Qwen3-1.7b-...`. 
             # If we push adapters there, we shouldn't push merged there on main.
             # Let's push merged to a branch `merged` to be safe and clean.
-            merged_model.push_to_hub(hub_id, revision="merged")
-            tokenizer.push_to_hub(hub_id, revision="merged")
-            print(">>> Merged model pushed to 'merged' branch.")
+            merged_model.push_to_hub(hub_id)
+            tokenizer.push_to_hub(hub_id)
+            print(">>> Merged model pushed to 'main' branch.")
 
 if __name__ == "__main__":
     main()
